@@ -1,0 +1,4 @@
+model,cv_mae,best_params
+rf,3.0030146149513914,"{""est__max_depth"": 12, ""est__min_samples_leaf"": 1, ""est__n_estimators"": 400}"
+hgb,3.050970909601578,"{""est__l2_regularization"": 0.1, ""est__learning_rate"": 0.1, ""est__max_depth"": 6, ""est__max_leaf_nodes"": 31}"
+ridge,4.524753499002079,"{""est__alpha"": 0.1}"
