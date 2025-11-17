@@ -1,0 +1,16 @@
+{
+  "VIS_N_COMP": 256,
+  "VIS_WEIGHT": 0.2,
+  "RANDOM_SEED": 42,
+  "cat_cols": [
+    "damage",
+    "season",
+    "stage_code"
+  ],
+  "num_cols": [
+    "has_jpg",
+    "has_jpeg",
+    "len_name",
+    "digits_sum"
+  ]
+}
