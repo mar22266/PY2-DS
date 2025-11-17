@@ -1,3 +1,5 @@
+# eda_page.py - Dashboard con diseño agrícola y accesibilidad mejorada
+
 import os
 import pandas as pd
 import numpy as np
@@ -10,6 +12,8 @@ import json
 from PIL import Image
 import random
 from prediction_utils import load_models, predict_extent_single, get_interpretation_text
+
+# ============== PALETA DE COLORES AGRÍCOLA (W3C AAA Compliant) ==============
 
 COLORS = {
     "primary": "#1e3a0f",      # Verde muy oscuro (AAA contrast)
@@ -26,6 +30,8 @@ COLORS = {
 }
 
 CHART_COLORS = ["#1e3a0f", "#c86200", "#d64500", "#0f7a32", "#2d5016", "#b91c1c"]
+
+# ============== CSS PERSONALIZADO MEJORADO ==============
 
 def apply_custom_css():
     st.markdown(f"""
@@ -296,8 +302,11 @@ def apply_plotly_theme(fig, title_text=""):
     )
     return fig
 
+
+# ============== CARGA DE DATOS ==============
+
 @st.cache_data
-def load_train_data(train_path="Train.csv", test_path="Test.csv"):
+def load_train_data(train_path="data/Train.csv", test_path="data/Test.csv"):
     """Carga Train.csv y, si existe, Test.csv; concatena ambos (añade columna 'split')."""
     df_train = pd.read_csv(train_path)
     df_train["split"] = "train"
@@ -309,13 +318,16 @@ def load_train_data(train_path="Train.csv", test_path="Test.csv"):
     else:
         df = df_train.copy()
 
+    # Normalizar extent
     if "extent" in df.columns:
         df["extent"] = pd.to_numeric(df["extent"], errors="coerce").fillna(0.0)
         df["extent"] = df["extent"].clip(0, 100)
 
+    # Limpiar columnas categóricas
     for col in ["damage", "season", "growth_stage"]:
         if col in df.columns:
             df[col] = df[col].astype(str).str.strip()
+            # Restaurar NaN para valores que se convirtieron a 'nan' strings
             df.loc[df[col].isin(["nan", "NaN", "None"]), col] = np.nan
 
     return df.reset_index(drop=True)
@@ -337,6 +349,7 @@ def load_model_metrics():
 
 @st.cache_data
 def load_final_model_metrics():
+    """Carga métricas del modelo final desde archivos o valores hardcoded"""
     final_metrics = {
         "model_name": "Early Fusion Tunable (XGB)",
         "mae": 2.56,
@@ -352,6 +365,10 @@ def load_final_model_metrics():
 
 @st.cache_data
 def generate_sample_pca_embeddings(df, n_samples=500):
+    """
+    Genera embeddings PCA de muestra usando datos sintéticos
+    basados en las distribuciones de las variables categóricas
+    """
     df_sample = df.sample(n=min(n_samples, len(df)), random_state=42).copy()
     
     np.random.seed(42)
@@ -383,6 +400,10 @@ def generate_sample_pca_embeddings(df, n_samples=500):
 
 @st.cache_data
 def generate_predictions_sample(df, n_samples=300):
+    """
+    Genera predicciones de muestra para visualización
+    Simula las predicciones del modelo con ruido realista
+    """
     df_sample = df.sample(n=min(n_samples, len(df)), random_state=42).copy()
     
     noise_std = np.sqrt((1 - 0.85) * df_sample['extent'].var())
@@ -394,13 +415,18 @@ def generate_predictions_sample(df, n_samples=300):
     
     return df_sample
 
+
+# ============== COMPONENTES VISUALES ==============
+
 def create_comparison_chart(metrics_df):
+    """Crea gráfica de comparación de modelos con subplots"""
     fig = make_subplots(
         rows=1, cols=3,
         subplot_titles=("MAE (menor es mejor)", "RMSE (menor es mejor)", "R² Score (mayor es mejor)"),
         specs=[[{"type": "bar"}, {"type": "bar"}, {"type": "bar"}]]
     )
     
+    # MAE
     fig.add_trace(
         go.Bar(
             x=metrics_df["Modelo"],
@@ -417,6 +443,7 @@ def create_comparison_chart(metrics_df):
         row=1, col=1
     )
     
+    # RMSE
     fig.add_trace(
         go.Bar(
             x=metrics_df["Modelo"],
@@ -433,6 +460,7 @@ def create_comparison_chart(metrics_df):
         row=1, col=2
     )
     
+    # R2
     fig.add_trace(
         go.Bar(
             x=metrics_df["Modelo"],
@@ -475,6 +503,7 @@ def create_comparison_chart(metrics_df):
 
 
 def create_info_card(title, content_list):
+    """Crea una tarjeta informativa accesible"""
     items_html = "".join([f"<li><strong>{k}:</strong> {v}</li>" for k, v in content_list])
     
     return f"""
@@ -503,6 +532,9 @@ def create_info_card(title, content_list):
 
 
 def create_3d_pca_scatter(df_pca, color_by='damage', title=''):
+    """
+    Crea un scatter plot 3D de los embeddings PCA
+    """
     color_labels = {
         'damage': 'Tipo de Daño',
         'season': 'Temporada',
@@ -511,6 +543,7 @@ def create_3d_pca_scatter(df_pca, color_by='damage', title=''):
     }
     
     if color_by == 'extent':
+        # Para extent, usar escala continua
         fig = px.scatter_3d(
             df_pca,
             x='PC1',
@@ -527,6 +560,7 @@ def create_3d_pca_scatter(df_pca, color_by='damage', title=''):
             }
         )
     else:
+        # Para categóricas, usar colores discretos
         fig = px.scatter_3d(
             df_pca,
             x='PC1',
@@ -591,8 +625,12 @@ def create_3d_pca_scatter(df_pca, color_by='damage', title=''):
 
 
 def create_true_vs_predicted_plot(df_pred):
+    """
+    Crea scatter plot de valores reales vs predichos
+    """
     fig = go.Figure()
     
+    # Scatter de predicciones
     fig.add_trace(go.Scatter(
         x=df_pred['extent'],
         y=df_pred['predicted'],
@@ -615,6 +653,7 @@ def create_true_vs_predicted_plot(df_pred):
         hovertemplate="<b>Real:</b> %{x:.1f}%<br><b>Predicho:</b> %{y:.1f}%<br><b>Error:</b> %{marker.color:.1f}%<extra></extra>"
     ))
     
+    # Línea de predicción perfecta
     min_val = min(df_pred['extent'].min(), df_pred['predicted'].min())
     max_val = max(df_pred['extent'].max(), df_pred['predicted'].max())
     fig.add_trace(go.Scatter(
@@ -643,6 +682,10 @@ def create_true_vs_predicted_plot(df_pred):
 
 
 def create_true_vs_predicted_3d(df_pred, color_by='abs_residual'):
+    """
+    Crea scatter plot 3D de valores reales vs predichos con categorías en Z
+    """
+    # Mapear damage types a valores numéricos para el eje Z
     damage_types = sorted(df_pred['damage'].dropna().unique())
     damage_map = {d: i for i, d in enumerate(damage_types)}
     df_pred['damage_numeric'] = df_pred['damage'].map(damage_map)
@@ -664,6 +707,7 @@ def create_true_vs_predicted_3d(df_pred, color_by='abs_residual'):
             }
         )
     else:
+        # Colorear por error absoluto
         fig = px.scatter_3d(
             df_pred,
             x='extent',
@@ -768,6 +812,9 @@ def create_true_vs_predicted_3d(df_pred, color_by='abs_residual'):
 
 
 def create_residuals_histogram(df_pred):
+    """
+    Crea histograma de residuales
+    """
     fig = px.histogram(
         df_pred,
         x='residual',
@@ -798,6 +845,9 @@ def create_residuals_histogram(df_pred):
 
 
 def create_extent_gauge(extent, title="Extent Predicho"):
+    """
+    Crea un gauge chart para mostrar el extent predicho
+    """
     fig = go.Figure(go.Indicator(
         mode="gauge+number+delta",
         value=extent,
@@ -836,11 +886,16 @@ def create_extent_gauge(extent, title="Extent Predicho"):
 
 
 def create_metrics_table(metrics_df):
+    """
+    Crea una tabla interactiva de métricas usando Plotly
+    """
+    # Función para colorear celdas basado en el valor
     def get_color_scale(val, min_val, max_val, reverse=False):
         normalized = (val - min_val) / (max_val - min_val) if max_val != min_val else 0.5
         if reverse:
             normalized = 1 - normalized
         
+        # Interpolación entre rojo y verde
         if normalized < 0.5:
             # Rojo a amarillo
             r = 220
@@ -853,6 +908,7 @@ def create_metrics_table(metrics_df):
         
         return f'rgba({r}, {g}, {b}, 0.3)'
     
+    # Preparar colores para cada celda
     mae_colors = [get_color_scale(v, metrics_df['MAE'].min(), metrics_df['MAE'].max(), reverse=True) 
                   for v in metrics_df['MAE']]
     rmse_colors = [get_color_scale(v, metrics_df['RMSE'].min(), metrics_df['RMSE'].max(), reverse=True) 
@@ -860,6 +916,7 @@ def create_metrics_table(metrics_df):
     r2_colors = [get_color_scale(v, metrics_df['R2'].min(), metrics_df['R2'].max(), reverse=False) 
                  for v in metrics_df['R2']]
     
+    # Crear la tabla
     fig = go.Figure(data=[go.Table(
         header=dict(
             values=['<b>Modelo</b>', '<b>MAE</b>', '<b>RMSE</b>', '<b>R²</b>'],
@@ -895,6 +952,9 @@ def create_metrics_table(metrics_df):
     
     return fig
 
+
+# ============== PÁGINA PRINCIPAL ==============
+
 def main():
     st.set_page_config(
         page_title="🌾 Dashboard de Análisis de Cultivos",
@@ -923,14 +983,16 @@ def main():
         </header>
     """, unsafe_allow_html=True)
     
-    train_path = "Train.csv"
+    # Carga de datos
+    train_path = "data/Train.csv"
     if not os.path.exists(train_path):
-        st.error(" No se encontró Train.csv. Verifica la ruta del archivo.")
+        st.error("⚠️ No se encontró data/Train.csv. Verifica la ruta del archivo.")
         return
     
     df = load_train_data(train_path)
     metrics_df = load_model_metrics()
     
+    # Sidebar con filtros
     with st.sidebar:
         st.markdown(f"""
             <h2 style='color: {COLORS["primary"]}; 
@@ -945,9 +1007,9 @@ def main():
         season_values = ["(Todos)"] + sorted(df["season"].dropna().unique().tolist())
         stage_values = ["(Todos)"] + sorted(df["growth_stage"].dropna().unique().tolist())
         
-        sel_damage = st.selectbox(" Tipo de daño", damage_values, key="damage_filter")
-        sel_season = st.selectbox(" Temporada", season_values, key="season_filter")
-        sel_stage = st.selectbox(" Etapa fenológica", stage_values, key="stage_filter")
+        sel_damage = st.selectbox("🦠 Tipo de daño", damage_values, key="damage_filter")
+        sel_season = st.selectbox("🌤️ Temporada", season_values, key="season_filter")
+        sel_stage = st.selectbox("🌱 Etapa fenológica", stage_values, key="stage_filter")
         
         st.markdown("---")
         st.markdown(f"""
@@ -970,6 +1032,7 @@ def main():
             </div>
         """, unsafe_allow_html=True)
     
+    # Aplicar filtros
     df_filt = df.copy()
     if sel_damage != "(Todos)":
         df_filt = df_filt[df_filt["damage"] == sel_damage]
@@ -979,27 +1042,28 @@ def main():
         df_filt = df_filt[df_filt["growth_stage"] == sel_stage]
     
     if len(df_filt) == 0:
-        st.warning(" No hay registros que coincidan con los filtros seleccionados. Intenta ajustar los criterios.")
+        st.warning("⚠️ No hay registros que coincidan con los filtros seleccionados. Intenta ajustar los criterios.")
         return
     
+    # KPIs principales usando métricas nativas de Streamlit
     st.markdown("<div role='region' aria-label='Métricas principales'>", unsafe_allow_html=True)
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
         st.metric(
-            label=" REGISTROS",
+            label="📊 REGISTROS",
             value=f"{len(df_filt):,}"
         )
     
     with col2:
         st.metric(
-            label=" EXTENT PROMEDIO",
+            label="📈 EXTENT PROMEDIO",
             value=f"{df_filt['extent'].mean():.1f}%"
         )
     
     with col3:
         st.metric(
-            label=" EXTENT MÁXIMO",
+            label="⚠️ EXTENT MÁXIMO",
             value=f"{df_filt['extent'].max():.1f}%"
         )
     
@@ -1012,12 +1076,13 @@ def main():
     st.markdown("</div>", unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
     
+    # Tabs principales
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
-        " Distribuciones", 
+        "📊 Distribuciones", 
         "🔬 Análisis Categórico", 
         "🤖 Comparación de Modelos",
         "🎯 Modelo Final",
-        " Predicciones"
+        "🔮 Predicciones"
     ])
     
     with tab1:
@@ -1049,12 +1114,12 @@ def main():
                 ("Rango", f"{df_filt['extent'].max() - df_filt['extent'].min():.1f}%")
             ]
             st.markdown(
-                create_info_card(" Estadísticas Descriptivas", insights_data),
+                create_info_card("📌 Estadísticas Descriptivas", insights_data),
                 unsafe_allow_html=True
             )
     
     with tab2:
-        st.markdown("###  Análisis por Variables Categóricas")
+        st.markdown("### 🎻 Análisis por Variables Categóricas")
         col1, col2 = st.columns(2)
         
         with col1:
@@ -1092,12 +1157,12 @@ def main():
             st.plotly_chart(fig_damage, use_container_width=False, key="box_damage")
     
     with tab3:
-        st.markdown("### Rendimiento de Modelos Multimodales")
+        st.markdown("### 🤖 Rendimiento de Modelos Multimodales")
         
         col1, col2 = st.columns([1.2, 2])
         
         with col1:
-            st.markdown("#### Métricas de Validación")
+            st.markdown("#### 📋 Métricas de Validación")
             fig_table = create_metrics_table(metrics_df)
             st.plotly_chart(fig_table, config={'displayModeBar': False})
         
@@ -1112,7 +1177,7 @@ def main():
                         box-shadow: 0 8px 32px rgba(30, 58, 15, 0.4); margin-top: 25px;
                         border: 2px solid {COLORS["secondary"]};'>
                 <h3 style='margin: 0 0 15px 0; color: white; font-weight: 700; font-size: 1.5rem;'>
-                     Mejor Modelo
+                    🏆 Mejor Modelo
                 </h3>
                 <h2 style='margin: 10px 0 20px 0; color: white; font-weight: 800; font-size: 1.8rem;'>
                     {best_model['Modelo']}
@@ -1135,9 +1200,13 @@ def main():
         """, unsafe_allow_html=True)
     
     with tab4:
-        st.markdown("### Análisis del Modelo Final")
-        final_metrics = load_final_model_metrics()        
-        st.markdown("#### Rendimiento del Modelo Final")
+        st.markdown("### 🎯 Análisis del Modelo Final")
+        
+        # Cargar métricas del modelo final
+        final_metrics = load_final_model_metrics()
+        
+        # Sección 1: Métricas del Modelo Final
+        st.markdown("#### 📊 Rendimiento del Modelo Final")
         
         col1, col2, col3, col4 = st.columns(4)
         
@@ -1174,6 +1243,7 @@ def main():
         
         st.markdown("<br>", unsafe_allow_html=True)
         
+        # Descripción del pipeline
         col1, col2 = st.columns([1.5, 1])
         
         with col1:
@@ -1184,7 +1254,7 @@ def main():
                             border: 2px solid {COLORS["card_border"]};
                             box-shadow: 0 2px 8px rgba(13, 31, 4, 0.08);'>
                     <h4 style='color: {COLORS["primary"]}; margin-top: 0; font-weight: 700;'>
-                         Pipeline del Modelo Final
+                        🔧 Pipeline del Modelo Final
                     </h4>
                     <div style='color: {COLORS["text"]}; line-height: 1.8; font-size: 0.95rem;'>
                         <p><strong>Arquitectura:</strong> Early Fusion con XGBoost</p>
@@ -1214,13 +1284,16 @@ def main():
                 ("R² Baseline", f"{final_metrics['baseline_r2']:.2f}")
             ]
             st.markdown(
-                create_info_card(" Comparación con Baseline", comparison_data),
+                create_info_card("📈 Comparación con Baseline", comparison_data),
                 unsafe_allow_html=True
             )
         
         st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown("---")        
-        st.markdown("#### Exploración del Espacio Visual (PCA 3D)")
+        st.markdown("---")
+        
+        # Sección 2: Exploración del Espacio Visual (PCA)
+        st.markdown("#### 🔬 Exploración del Espacio Visual (PCA 3D)")
+        
         st.markdown(f"""
             <div style='background: {COLORS["background"]}; 
                         padding: 1rem 1.5rem; 
@@ -1228,14 +1301,17 @@ def main():
                         border-left: 4px solid {COLORS["accent"]};
                         margin-bottom: 1.5rem;'>
                 <p style='color: {COLORS["text"]}; margin: 0; font-size: 0.95rem; line-height: 1.6;'>
-                    <strong> Interpretación:</strong> Estas visualizaciones muestran cómo el modelo representa 
+                    <strong>ℹ️ Interpretación:</strong> Estas visualizaciones muestran cómo el modelo representa 
                     las imágenes en un espacio latente de 3 dimensiones (reducido de 256 componentes PCA). 
                     Los clusters y patrones revelan similitudes visuales entre diferentes tipos de daño y condiciones.
                 </p>
             </div>
         """, unsafe_allow_html=True)
         
+        # Generar datos PCA de muestra
         df_pca = generate_sample_pca_embeddings(df_filt, n_samples=500)
+        
+        # Controles para la visualización 3D
         col1, col2 = st.columns([1, 3])
         
         with col1:
@@ -1244,10 +1320,10 @@ def main():
                 "Selecciona variable",
                 ['damage', 'season', 'growth_stage', 'extent'],
                 format_func=lambda x: {
-                    'damage': ' Tipo de Daño',
-                    'season': ' Temporada',
-                    'growth_stage': ' Etapa Fenológica',
-                    'extent': ' Extent (continuo)'
+                    'damage': '🦠 Tipo de Daño',
+                    'season': '🌤️ Temporada',
+                    'growth_stage': '🌱 Etapa Fenológica',
+                    'extent': '📊 Extent (continuo)'
                 }[x],
                 key="pca_color"
             )
@@ -1262,7 +1338,7 @@ def main():
                 ("Varianza PC3", "~12%")
             ]
             st.markdown(
-                create_info_card(" Info del Espacio PCA", pca_stats),
+                create_info_card("📊 Info del Espacio PCA", pca_stats),
                 unsafe_allow_html=True
             )
         
@@ -1275,19 +1351,23 @@ def main():
             st.plotly_chart(fig_pca, use_container_width=False, key="pca_3d")
         
         st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown("---")        
-        st.markdown("#### Análisis de Predicciones")
+        st.markdown("---")
         
+        # Sección 3: Análisis de Predicciones
+        st.markdown("#### 🎯 Análisis de Predicciones")
+        
+        # Generar datos de predicciones
         df_pred = generate_predictions_sample(df_filt, n_samples=300)
         
+        # Toggle para 2D/3D
         viz_mode = st.radio(
             "**Modo de Visualización:**",
-            [" 2D (Tradicional)", " 3D (Por Tipo de Daño)"],
+            ["📊 2D (Tradicional)", "🎲 3D (Por Tipo de Daño)"],
             horizontal=True,
             key="viz_mode"
         )
         
-        if viz_mode == " 2D (Tradicional)":
+        if viz_mode == "📊 2D (Tradicional)":
             col1, col2 = st.columns([2, 1])
             
             with col1:
@@ -1295,11 +1375,12 @@ def main():
                 st.plotly_chart(fig_pred, use_container_width=False, key="true_vs_pred")
             
             with col2:
+                # Métricas de las predicciones
                 mae_sample = np.mean(df_pred['abs_residual'])
                 rmse_sample = np.sqrt(np.mean(df_pred['residual']**2))
                 r2_sample = 1 - (np.sum(df_pred['residual']**2) / np.sum((df_pred['extent'] - df_pred['extent'].mean())**2))
                 
-                st.markdown("** Métricas de esta Muestra:**")
+                st.markdown("**📊 Métricas de esta Muestra:**")
                 st.metric("MAE", f"{mae_sample:.2f}")
                 st.metric("RMSE", f"{rmse_sample:.2f}")
                 st.metric("R²", f"{r2_sample:.2f}")
@@ -1313,14 +1394,15 @@ def main():
                     ("Predicciones±5%", f"{(df_pred['abs_residual'] <= 5).sum()} ({(df_pred['abs_residual'] <= 5).mean()*100:.1f}%)")
                 ]
                 st.markdown(
-                    create_info_card(" Estadísticas", pred_stats),
+                    create_info_card("📈 Estadísticas", pred_stats),
                     unsafe_allow_html=True
                 )
         
-        else:
+        else:  # 3D mode
             col1, col2 = st.columns([3, 1])
             
             with col1:
+                # Toggle para colorear por error o por damage
                 color_3d = st.radio(
                     "**Colorear 3D por:**",
                     ["Error Absoluto", "Tipo de Daño"],
@@ -1340,20 +1422,22 @@ def main():
                                 border: 2px solid {COLORS["card_border"]};
                                 box-shadow: 0 2px 8px rgba(13, 31, 4, 0.08);'>
                         <h4 style='color: {COLORS["primary"]}; margin-top: 0; font-weight: 700;'>
-                             Cómo Interpretar 3D
+                            💡 Cómo Interpretar 3D
                         </h4>
                         <div style='color: {COLORS["text"]}; line-height: 1.8; font-size: 0.9rem;'>
                             <p><strong>Eje X:</strong> Extent real del daño</p>
                             <p><strong>Eje Y:</strong> Extent predicho por el modelo</p>
                             <p><strong>Eje Z:</strong> Categorías de tipo de daño</p>
                             <p><strong>Líneas naranjas:</strong> Predicción perfecta para cada categoría</p>
-                            <p><strong> Insight:</strong> Los puntos cercanos a las líneas naranjas indican predicciones precisas. La dispersión vertical muestra cómo varía el rendimiento entre tipos de daño.</p>
+                            <p><strong>💡 Insight:</strong> Los puntos cercanos a las líneas naranjas indican predicciones precisas. La dispersión vertical muestra cómo varía el rendimiento entre tipos de daño.</p>
                         </div>
                     </div>
                 """, unsafe_allow_html=True)
                 
-                st.markdown("<br>", unsafe_allow_html=True)                
-                st.markdown("** Métricas por Tipo:**")
+                st.markdown("<br>", unsafe_allow_html=True)
+                
+                # Métricas por damage type
+                st.markdown("**📊 Métricas por Tipo:**")
                 damage_metrics = df_pred.groupby('damage').agg({
                     'abs_residual': 'mean',
                     'ID': 'count'
@@ -1363,7 +1447,10 @@ def main():
         
         st.markdown("<br>", unsafe_allow_html=True)
         
+        # Métricas generales (siempre visibles)
         col1, col2 = st.columns([2, 1])
+        
+        # Distribución de residuales (moved to its own section after toggle)
         
         with col1:
             fig_residuals = create_residuals_histogram(df_pred)
@@ -1378,7 +1465,7 @@ def main():
                             box-shadow: 0 2px 8px rgba(13, 31, 4, 0.08);
                             height: 100%;'>
                     <h4 style='color: {COLORS["primary"]}; margin-top: 0; font-weight: 700;'>
-                         Interpretación
+                        💡 Interpretación
                     </h4>
                     <div style='color: {COLORS["text"]}; line-height: 1.8; font-size: 0.9rem;'>
                         <p><strong>Residuales centrados en 0:</strong> Indica que el modelo no tiene sesgo sistemático.</p>
@@ -1389,6 +1476,8 @@ def main():
             """, unsafe_allow_html=True)
         
         st.markdown("<br>", unsafe_allow_html=True)
+        
+        # Conclusiones finales
         st.markdown(f"""
             <div style='background: linear-gradient(135deg, {COLORS["success"]}, {COLORS["primary"]}); 
                         padding: 25px; 
@@ -1396,7 +1485,7 @@ def main():
                         color: white; 
                         box-shadow: 0 6px 20px rgba(13, 31, 4, 0.3);
                         margin-top: 2rem;'>
-                <h3 style='color: white; margin: 0 0 15px 0; font-weight: 700;'>Conclusiones del Modelo Final</h3>
+                <h3 style='color: white; margin: 0 0 15px 0; font-weight: 700;'>✅ Conclusiones del Modelo Final</h3>
                 <ul style='margin: 0; padding-left: 1.5rem; line-height: 2;'>
                     <li><strong>Early Fusion</strong> demostró ser la estrategia más efectiva, combinando features visuales y metadatos.</li>
                     <li>Reducción de <strong>{mejora_mae:.1f}% en MAE</strong> comparado con el baseline de Random Forest.</li>
@@ -1409,7 +1498,7 @@ def main():
 
 
     with tab5:
-        st.markdown("###  Sistema de Predicción de Extent")
+        st.markdown("### 🔮 Sistema de Predicción de Extent")
         
         st.markdown(f"""
             <div style='background: {COLORS["background"]}; 
@@ -1418,42 +1507,48 @@ def main():
                         border-left: 4px solid {COLORS["accent"]};
                         margin-bottom: 1.5rem;'>
                 <p style='color: {COLORS["text"]}; margin: 0; font-size: 0.95rem; line-height: 1.6;'>
-                    <strong> Instrucciones:</strong> Selecciona un modo de predicción. Puedes subir tu propia imagen 
+                    <strong>ℹ️ Instrucciones:</strong> Selecciona un modo de predicción. Puedes subir tu propia imagen 
                     y proporcionar metadatos manualmente, o seleccionar una imagen de muestra del dataset de test con 
                     metadatos automáticos.
                 </p>
             </div>
         """, unsafe_allow_html=True)
         
+        # Cargar modelos
         models = load_models()
         
         if models is None:
-            st.error(" No se pudieron cargar los modelos. Verifica que todos los archivos .pkl y .json estén en la carpeta app/model/")
-            st.info(" Tip: Asegúrate de tener instalado xgboost: `pip install xgboost`")
+            st.error("❌ No se pudieron cargar los modelos. Verifica que todos los archivos .pkl y .json estén en la carpeta app/model/")
+            st.info("💡 Tip: Asegúrate de tener instalado xgboost: `pip install xgboost`")
         else:
+            # Selector de modo
             col1, col2 = st.columns(2)
             
             with col1:
-                st.markdown("#### Modo de Predicción")
+                st.markdown("#### 🎯 Modo de Predicción")
             
             with col2:
                 pass
             
             prediction_mode = st.radio(
                 "Selecciona cómo quieres realizar la predicción:",
-                [" Subir Imagen + Metadatos Manuales", " Imagen Aleatoria del Test"],
+                ["📎 Subir Imagen + Metadatos Manuales", "🎲 Imagen Aleatoria del Test"],
                 horizontal=True,
                 key="prediction_mode"
             )
             
             st.markdown("<br>", unsafe_allow_html=True)
             
+            # Variables para almacenar imagen y metadatos
             image_to_predict = None
             metadata_to_predict = None
             display_filename = None
             
-            if prediction_mode == " Subir Imagen + Metadatos Manuales":
-                st.markdown("####  Cargar Imagen y Metadatos")
+            # ============== MODO A: Subir imagen + metadatos manuales ==============
+            if prediction_mode == "📎 Subir Imagen + Metadatos Manuales":
+                st.markdown("#### 📄 Cargar Imagen y Metadatos")
+                
+                # Advertencia importante
                 st.markdown(f"""
                     <div style='background: linear-gradient(135deg, {COLORS["warning"]}, {COLORS["accent"]}); 
                                 padding: 1rem 1.25rem; 
@@ -1462,7 +1557,7 @@ def main():
                                 box-shadow: 0 4px 12px rgba(185, 28, 28, 0.3);
                                 margin-bottom: 1.5rem;'>
                         <h4 style='color: white; margin: 0 0 0.5rem 0; font-weight: 700;'>
-                             Advertencia Importante
+                            ⚠️ Advertencia Importante
                         </h4>
                         <p style='margin: 0; font-size: 0.9rem; line-height: 1.6;'>
                             Este modelo fue entrenado específicamente con imágenes de <strong>cultivos afectados por 
@@ -1475,7 +1570,7 @@ def main():
                             <li>Tomada en condiciones similares al dataset</li>
                         </ul>
                         <p style='margin: 0.5rem 0 0 0; font-size: 0.85rem; opacity: 0.9;'>
-                             <strong>Nota:</strong> Imágenes fuera de este contexto (ej: jardines, plantas de interior, 
+                            ⚡ <strong>Nota:</strong> Imágenes fuera de este contexto (ej: jardines, plantas de interior, 
                             fotos aleatorias) producirán predicciones sin sentido.
                         </p>
                     </div>
@@ -1496,7 +1591,7 @@ def main():
                         st.image(image_to_predict, caption=f"Imagen cargada: {uploaded_file.name}", use_container_width=True)
                 
                 with col2:
-                    st.markdown("** Características del Cultivo Observado:**")
+                    st.markdown("**📋 Características del Cultivo Observado:**")
                     
                     st.markdown(f"""
                         <div style='background: {COLORS["background"]}; 
@@ -1505,20 +1600,21 @@ def main():
                                     border-left: 3px solid {COLORS["accent"]};
                                     margin-bottom: 1rem;'>
                             <p style='color: {COLORS["text"]}; margin: 0; font-size: 0.85rem; line-height: 1.5;'>
-                                 <strong>Importante:</strong> Selecciona las características que observas en la imagen 
+                                💡 <strong>Importante:</strong> Selecciona las características que observas en la imagen 
                                 (tipo de daño, temporada de captura, etapa de crecimiento). El modelo usa esta información 
                                 junto con la imagen para estimar el porcentaje de daño.
                             </p>
                         </div>
                     """, unsafe_allow_html=True)
                     
+                    # Obtener valores únicos del dataset para sugerencias
                     damage_options = sorted(df['damage'].dropna().unique().tolist())
                     season_options = sorted(df['season'].dropna().unique().tolist())
                     stage_options = sorted(df['growth_stage'].dropna().unique().tolist())
                     
-                    damage_input = st.selectbox(" Tipo de Daño Observado", damage_options, key="damage_manual")
-                    season_input = st.selectbox(" Temporada de Captura", season_options, key="season_manual")
-                    stage_input = st.selectbox(" Etapa de Crecimiento", stage_options, key="stage_manual")
+                    damage_input = st.selectbox("🦠 Tipo de Daño Observado", damage_options, key="damage_manual")
+                    season_input = st.selectbox("🌤️ Temporada de Captura", season_options, key="season_manual")
+                    stage_input = st.selectbox("🌱 Etapa de Crecimiento", stage_options, key="stage_manual")
                     
                     if uploaded_file is not None:
                         metadata_to_predict = {
@@ -1528,16 +1624,18 @@ def main():
                             'filename': uploaded_file.name
                         }
             
+            # ============== MODO B: Selección desde subset de test ==============
             else:
-                st.markdown("####  Selección Aleatoria desde Test")
+                st.markdown("#### 🎲 Selección Aleatoria desde Test")
                 
-                if os.path.exists('Test_sample.csv'):
-                    df_test_sample = pd.read_csv('Test_sample.csv')
+                # Cargar test sample
+                if os.path.exists('data/Test_sample.csv'):
+                    df_test_sample = pd.read_csv('data/Test_sample.csv')
                     
                     col1, col2, col3 = st.columns([1, 2, 1])
                     
                     with col2:
-                        if st.button(" Seleccionar Imagen Aleatoria", type="primary", use_container_width=True):
+                        if st.button("🎲 Seleccionar Imagen Aleatoria", type="primary", use_container_width=True):
                             st.session_state['random_test_row'] = df_test_sample.sample(n=1, random_state=random.randint(0, 10000)).iloc[0]
                     
                     if 'random_test_row' in st.session_state:
@@ -1546,6 +1644,7 @@ def main():
                         col1, col2 = st.columns([1.5, 1])
                         
                         with col1:
+                            # Buscar imagen en sample_imgs
                             img_path = f"sample_imgs/{row['filename']}"
                             
                             if os.path.exists(img_path):
@@ -1553,12 +1652,12 @@ def main():
                                 display_filename = row['filename']
                                 st.image(image_to_predict, caption=f"Imagen: {row['filename']}", use_container_width=True)
                             else:
-                                st.error(f" Imagen no encontrada: {row['filename']}")
-                                st.info(f" Ruta buscada: {img_path}")
-                                st.info(" Intenta con otra imagen aleatoria")
+                                st.error(f"❌ Imagen no encontrada: {row['filename']}")
+                                st.info(f"📂 Ruta buscada: {img_path}")
+                                st.info("💡 Intenta con otra imagen aleatoria")
                         
                         with col2:
-                            st.markdown("** Metadatos del Test:**")
+                            st.markdown("**📊 Metadatos del Test:**")
                             
                             st.markdown(f"""
                                 <div style='background: {COLORS["card_bg"]}; 
@@ -1566,9 +1665,9 @@ def main():
                                             border-radius: 8px; 
                                             border: 2px solid {COLORS["card_border"]};'>
                                     <p style='margin: 0.5rem 0; color: {COLORS["text"]};'><strong>ID:</strong> {row['ID']}</p>
-                                    <p style='margin: 0.5rem 0; color: {COLORS["text"]};'><strong> Daño:</strong> {row['damage']}</p>
-                                    <p style='margin: 0.5rem 0; color: {COLORS["text"]};'><strong> Temporada:</strong> {row['season']}</p>
-                                    <p style='margin: 0.5rem 0; color: {COLORS["text"]};'><strong> Etapa:</strong> {row['growth_stage']}</p>
+                                    <p style='margin: 0.5rem 0; color: {COLORS["text"]};'><strong>🦠 Daño:</strong> {row['damage']}</p>
+                                    <p style='margin: 0.5rem 0; color: {COLORS["text"]};'><strong>🌤️ Temporada:</strong> {row['season']}</p>
+                                    <p style='margin: 0.5rem 0; color: {COLORS["text"]};'><strong>🌱 Etapa:</strong> {row['growth_stage']}</p>
                                     <p style='margin: 0.5rem 0; color: {COLORS["text"]};'><strong>📁 Archivo:</strong> {row['filename']}</p>
                                 </div>
                             """, unsafe_allow_html=True)
@@ -1579,17 +1678,19 @@ def main():
                                     'season': row['season'],
                                     'growth_stage': row['growth_stage'],
                                     'filename': row['filename'],
-                                    'extent_real': row.get('extent', None)
+                                    'extent_real': row.get('extent', None)  # Incluir extent real si existe
                                 }
                 else:
-                    st.error(" No se encontró Test_sample.csv. Verifica que el archivo exista.")
+                    st.error("❌ No se encontró data/Test_sample.csv. Verifica que el archivo exista.")
             
+            # ============== PREDICCIÓN ==============
             if image_to_predict is not None and metadata_to_predict is not None:
                 st.markdown("<br>", unsafe_allow_html=True)
                 st.markdown("---")
-                st.markdown("###  Resultado de la Predicción")
+                st.markdown("### 🔮 Resultado de la Predicción")
                 
-                with st.spinner(' Procesando imagen y generando predicción...'):
+                with st.spinner('🔄 Procesando imagen y generando predicción...'):
+                    # Realizar predicción
                     result = predict_extent_single(image_to_predict, metadata_to_predict, models)
                 
                 if result['success']:
@@ -1597,13 +1698,16 @@ def main():
                     extent_real = metadata_to_predict.get('extent_real', None)
                     interpretation = get_interpretation_text(extent_pred)
                     
+                    # Mostrar resultado principal
                     col1, col2 = st.columns([1, 1.5])
                     
                     with col1:
+                        # Gauge chart
                         fig_gauge = create_extent_gauge(extent_pred, "Extent Predicho de Daño")
                         st.plotly_chart(fig_gauge, config={'displayModeBar': False})
                     
                     with col2:
+                        # Interpretación
                         extent_info = f"<strong>Extent Predicho:</strong> {extent_pred:.1f}%"
                         if extent_real is not None and not pd.isna(extent_real):
                             error = abs(extent_pred - extent_real)
@@ -1632,7 +1736,8 @@ def main():
                     
                     st.markdown("<br>", unsafe_allow_html=True)
                     
-                    with st.expander(" Ver Detalles Técnicos del Modelo"):
+                    # Detalles técnicos
+                    with st.expander("🔧 Ver Detalles Técnicos del Modelo"):
                         col1, col2, col3 = st.columns(3)
                         
                         with col1:
@@ -1656,18 +1761,20 @@ def main():
                                 "early fusion"
                             )
                         
-                        st.markdown("** Pipeline Ejecutado:**")
+                        st.markdown("**📊 Pipeline Ejecutado:**")
                         st.markdown("""
-                        1. Extracción de embeddings visuales (MobileNetV3-like)
-                        2. Escalado y PCA de features visuales (256 componentes)
-                        3. Preprocesamiento de metadatos (one-hot encoding)
-                        4. Early Fusion con peso visual de 20%
-                        5. Predicción con XGBoost entrenado
+                        1. ✅ Extracción de embeddings visuales (MobileNetV3-like)
+                        2. ✅ Escalado y PCA de features visuales (256 componentes)
+                        3. ✅ Preprocesamiento de metadatos (one-hot encoding)
+                        4. ✅ Early Fusion con peso visual de 20%
+                        5. ✅ Predicción con XGBoost entrenado
                         """)
                     
+                    # Historial de predicciones (opcional)
                     if 'prediction_history' not in st.session_state:
                         st.session_state['prediction_history'] = []
                     
+                    # Agregar a historial
                     st.session_state['prediction_history'].append({
                         'filename': display_filename,
                         'extent': extent_pred,
@@ -1677,10 +1784,11 @@ def main():
                         'growth_stage': metadata_to_predict['growth_stage']
                     })
                     
+                    # Mostrar historial
                     if len(st.session_state['prediction_history']) > 1:
                         st.markdown("<br>", unsafe_allow_html=True)
                         st.markdown("---")
-                        st.markdown("### Historial de Predicciones (Sesión Actual)")
+                        st.markdown("### 📊 Historial de Predicciones (Sesión Actual)")
                         
                         df_history = pd.DataFrame(st.session_state['prediction_history'])
                         st.dataframe(
@@ -1689,15 +1797,16 @@ def main():
                             height=200
                         )
                         
+                        # Botón para limpiar historial
                         if st.button("🗑️ Limpiar Historial"):
                             st.session_state['prediction_history'] = []
                             st.rerun()
                 
                 else:
-                    st.error(f" Error en la predicción: {result.get('error', 'Error desconocido')}")
+                    st.error(f"❌ Error en la predicción: {result.get('error', 'Error desconocido')}")
             
             elif image_to_predict is None:
-                st.info(" Por favor, sube una imagen o selecciona una del test para comenzar la predicción.")
+                st.info("📌 Por favor, sube una imagen o selecciona una del test para comenzar la predicción.")
 
 
 if __name__ == "__main__":
