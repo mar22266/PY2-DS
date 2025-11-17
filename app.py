@@ -1548,6 +1548,34 @@ def main():
             if prediction_mode == "📎 Subir Imagen + Metadatos Manuales":
                 st.markdown("#### 📄 Cargar Imagen y Metadatos")
                 
+                # Advertencia importante
+                st.markdown(f"""
+                    <div style='background: linear-gradient(135deg, {COLORS["warning"]}, {COLORS["accent"]}); 
+                                padding: 1rem 1.25rem; 
+                                border-radius: 10px; 
+                                color: white;
+                                box-shadow: 0 4px 12px rgba(185, 28, 28, 0.3);
+                                margin-bottom: 1.5rem;'>
+                        <h4 style='color: white; margin: 0 0 0.5rem 0; font-weight: 700;'>
+                            ⚠️ Advertencia Importante
+                        </h4>
+                        <p style='margin: 0; font-size: 0.9rem; line-height: 1.6;'>
+                            Este modelo fue entrenado específicamente con imágenes de <strong>cultivos afectados por 
+                            plagas y enfermedades</strong> del dataset CGIAR. Para obtener predicciones válidas, 
+                            la imagen debe ser de:
+                        </p>
+                        <ul style='margin: 0.5rem 0 0 1.25rem; font-size: 0.9rem; line-height: 1.6;'>
+                            <li>Cultivos agrícolas (similares a los del entrenamiento)</li>
+                            <li>Con daño visible causado por plagas o enfermedades</li>
+                            <li>Tomada en condiciones similares al dataset</li>
+                        </ul>
+                        <p style='margin: 0.5rem 0 0 0; font-size: 0.85rem; opacity: 0.9;'>
+                            ⚡ <strong>Nota:</strong> Imágenes fuera de este contexto (ej: jardines, plantas de interior, 
+                            fotos aleatorias) producirán predicciones sin sentido.
+                        </p>
+                    </div>
+                """, unsafe_allow_html=True)
+                
                 col1, col2 = st.columns([1.5, 1])
                 
                 with col1:
@@ -1560,19 +1588,33 @@ def main():
                     if uploaded_file is not None:
                         image_to_predict = Image.open(uploaded_file)
                         display_filename = uploaded_file.name
-                        st.image(image_to_predict, caption=f"Imagen cargada: {uploaded_file.name}", use_column_width=True)
+                        st.image(image_to_predict, caption=f"Imagen cargada: {uploaded_file.name}", use_container_width=True)
                 
                 with col2:
-                    st.markdown("**📋 Ingresar Metadatos:**")
+                    st.markdown("**📋 Características del Cultivo Observado:**")
+                    
+                    st.markdown(f"""
+                        <div style='background: {COLORS["background"]}; 
+                                    padding: 0.75rem; 
+                                    border-radius: 6px; 
+                                    border-left: 3px solid {COLORS["accent"]};
+                                    margin-bottom: 1rem;'>
+                            <p style='color: {COLORS["text"]}; margin: 0; font-size: 0.85rem; line-height: 1.5;'>
+                                💡 <strong>Importante:</strong> Selecciona las características que observas en la imagen 
+                                (tipo de daño, temporada de captura, etapa de crecimiento). El modelo usa esta información 
+                                junto con la imagen para estimar el porcentaje de daño.
+                            </p>
+                        </div>
+                    """, unsafe_allow_html=True)
                     
                     # Obtener valores únicos del dataset para sugerencias
                     damage_options = sorted(df['damage'].dropna().unique().tolist())
                     season_options = sorted(df['season'].dropna().unique().tolist())
                     stage_options = sorted(df['growth_stage'].dropna().unique().tolist())
                     
-                    damage_input = st.selectbox("🦠 Tipo de Daño", damage_options, key="damage_manual")
-                    season_input = st.selectbox("🌤️ Temporada", season_options, key="season_manual")
-                    stage_input = st.selectbox("🌱 Etapa Fenológica", stage_options, key="stage_manual")
+                    damage_input = st.selectbox("🦠 Tipo de Daño Observado", damage_options, key="damage_manual")
+                    season_input = st.selectbox("🌤️ Temporada de Captura", season_options, key="season_manual")
+                    stage_input = st.selectbox("🌱 Etapa de Crecimiento", stage_options, key="stage_manual")
                     
                     if uploaded_file is not None:
                         metadata_to_predict = {
@@ -1608,7 +1650,7 @@ def main():
                             if os.path.exists(img_path):
                                 image_to_predict = Image.open(img_path)
                                 display_filename = row['filename']
-                                st.image(image_to_predict, caption=f"Imagen: {row['filename']}", use_column_width=True)
+                                st.image(image_to_predict, caption=f"Imagen: {row['filename']}", use_container_width=True)
                             else:
                                 st.error(f"❌ Imagen no encontrada: {row['filename']}")
                                 st.info(f"📂 Ruta buscada: {img_path}")
@@ -1635,7 +1677,8 @@ def main():
                                     'damage': row['damage'],
                                     'season': row['season'],
                                     'growth_stage': row['growth_stage'],
-                                    'filename': row['filename']
+                                    'filename': row['filename'],
+                                    'extent_real': row.get('extent', None)  # Incluir extent real si existe
                                 }
                 else:
                     st.error("❌ No se encontró Test_sample.csv. Verifica que el archivo exista.")
@@ -1652,6 +1695,7 @@ def main():
                 
                 if result['success']:
                     extent_pred = result['extent_predicted']
+                    extent_real = metadata_to_predict.get('extent_real', None)
                     interpretation = get_interpretation_text(extent_pred)
                     
                     # Mostrar resultado principal
@@ -1664,6 +1708,11 @@ def main():
                     
                     with col2:
                         # Interpretación
+                        extent_info = f"<strong>Extent Predicho:</strong> {extent_pred:.1f}%"
+                        if extent_real is not None and not pd.isna(extent_real):
+                            error = abs(extent_pred - extent_real)
+                            extent_info += f"<br><strong>Extent Real:</strong> {extent_real:.1f}%<br><strong>Error Absoluto:</strong> {error:.1f}%"
+                        
                         st.markdown(f"""
                             <div style='background: linear-gradient(135deg, {interpretation['color']}, {COLORS["primary"]}); 
                                         padding: 25px; 
@@ -1678,8 +1727,8 @@ def main():
                                     {interpretation['message']}
                                 </p>
                                 <div style='margin-top: 20px; padding-top: 15px; border-top: 2px solid rgba(255,255,255,0.3);'>
-                                    <p style='margin: 0; font-size: 0.95rem; opacity: 0.9;'>
-                                        <strong>Extent Predicho:</strong> {extent_pred:.1f}%
+                                    <p style='margin: 0; font-size: 0.95rem; opacity: 0.9; line-height: 1.8;'>
+                                        {extent_info}
                                     </p>
                                 </div>
                             </div>
