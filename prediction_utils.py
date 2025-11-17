@@ -21,7 +21,6 @@ def extract_visual_features_mock(image, target_size=(224, 224)):
 
 @st.cache_resource
 def load_models():
-    """Carga todos los modelos y preprocessors necesarios"""
     models = {}
     
     try:
@@ -200,7 +199,6 @@ def predict_extent_single(image, metadata, models):
 
 
 def get_interpretation_text(extent):
-    """Genera interpretación textual del extent predicho"""
     if extent < 5:
         severity = "Muy Bajo"
         color = "#0f7a32"
