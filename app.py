@@ -369,20 +369,16 @@ def generate_sample_pca_embeddings(df, n_samples=500):
     Genera embeddings PCA de muestra usando datos sintéticos
     basados en las distribuciones de las variables categóricas
     """
-    # Tomar muestra del dataset
     df_sample = df.sample(n=min(n_samples, len(df)), random_state=42).copy()
     
-    # Generar embeddings PCA sintéticos (simulación)
     np.random.seed(42)
     
-    # Crear embeddings que reflejen algo de estructura basada en damage y season
     damage_map = {d: i for i, d in enumerate(df_sample['damage'].unique())}
     season_map = {s: i for i, s in enumerate(df_sample['season'].unique())}
     
     df_sample['damage_code'] = df_sample['damage'].map(damage_map).fillna(0)
     df_sample['season_code'] = df_sample['season'].map(season_map).fillna(0)
     
-    # Generar componentes principales con algo de estructura
     df_sample['PC1'] = (
         np.random.randn(len(df_sample)) * 2 + 
         df_sample['damage_code'] * 0.5 +
@@ -410,7 +406,6 @@ def generate_predictions_sample(df, n_samples=300):
     """
     df_sample = df.sample(n=min(n_samples, len(df)), random_state=42).copy()
     
-    # Generar predicciones con ruido (simulando modelo con R² ~ 0.85)
     noise_std = np.sqrt((1 - 0.85) * df_sample['extent'].var())
     df_sample['predicted'] = df_sample['extent'] + np.random.randn(len(df_sample)) * noise_std
     df_sample['predicted'] = df_sample['predicted'].clip(0, 100)
@@ -696,7 +691,6 @@ def create_true_vs_predicted_3d(df_pred, color_by='abs_residual'):
     df_pred['damage_numeric'] = df_pred['damage'].map(damage_map)
     
     if color_by == 'damage':
-        # Colorear por tipo de daño
         fig = px.scatter_3d(
             df_pred,
             x='extent',
@@ -730,7 +724,6 @@ def create_true_vs_predicted_3d(df_pred, color_by='abs_residual'):
             }
         )
         
-        # Configurar colorbar para error absoluto
         fig.update_traces(
             marker=dict(
                 colorbar=dict(
@@ -743,11 +736,9 @@ def create_true_vs_predicted_3d(df_pred, color_by='abs_residual'):
             )
         )
     
-    # Añadir línea de predicción perfecta en 3D
     min_val = min(df_pred['extent'].min(), df_pred['predicted'].min())
     max_val = max(df_pred['extent'].max(), df_pred['predicted'].max())
     
-    # Crear líneas de referencia para cada damage type
     for i, damage_type in enumerate(damage_types):
         fig.add_trace(go.Scatter3d(
             x=[min_val, max_val],
@@ -839,7 +830,6 @@ def create_residuals_histogram(df_pred):
         opacity=0.9
     )
     
-    # Añadir línea vertical en 0
     fig.add_vline(
         x=0,
         line_dash="dash",
@@ -975,7 +965,6 @@ def main():
     
     apply_custom_css()
     
-    # Header mejorado con mejor accesibilidad
     st.markdown(f"""
         <header role="banner" style='text-align: center; padding: 1.5rem 1rem; margin-bottom: 1rem;'>
             <h1 style='font-size: 2.25rem; 
@@ -1621,7 +1610,8 @@ def main():
                                 display_filename = row['filename']
                                 st.image(image_to_predict, caption=f"Imagen: {row['filename']}", use_column_width=True)
                             else:
-                                st.warning(f"⚠️ Imagen no encontrada: {row['filename']}")
+                                st.error(f"❌ Imagen no encontrada: {row['filename']}")
+                                st.info(f"📂 Ruta buscada: {img_path}")
                                 st.info("💡 Intenta con otra imagen aleatoria")
                         
                         with col2:
@@ -1632,11 +1622,11 @@ def main():
                                             padding: 1rem; 
                                             border-radius: 8px; 
                                             border: 2px solid {COLORS["card_border"]};'>
-                                    <p style='margin: 0.5rem 0;'><strong>ID:</strong> {row['ID']}</p>
-                                    <p style='margin: 0.5rem 0;'><strong>🦠 Daño:</strong> {row['damage']}</p>
-                                    <p style='margin: 0.5rem 0;'><strong>🌤️ Temporada:</strong> {row['season']}</p>
-                                    <p style='margin: 0.5rem 0;'><strong>🌱 Etapa:</strong> {row['growth_stage']}</p>
-                                    <p style='margin: 0.5rem 0;'><strong>📁 Archivo:</strong> {row['filename']}</p>
+                                    <p style='margin: 0.5rem 0; color: {COLORS["text"]};'><strong>ID:</strong> {row['ID']}</p>
+                                    <p style='margin: 0.5rem 0; color: {COLORS["text"]};'><strong>🦠 Daño:</strong> {row['damage']}</p>
+                                    <p style='margin: 0.5rem 0; color: {COLORS["text"]};'><strong>🌤️ Temporada:</strong> {row['season']}</p>
+                                    <p style='margin: 0.5rem 0; color: {COLORS["text"]};'><strong>🌱 Etapa:</strong> {row['growth_stage']}</p>
+                                    <p style='margin: 0.5rem 0; color: {COLORS["text"]};'><strong>📁 Archivo:</strong> {row['filename']}</p>
                                 </div>
                             """, unsafe_allow_html=True)
                             
